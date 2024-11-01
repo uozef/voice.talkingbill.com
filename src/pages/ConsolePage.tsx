@@ -1,13 +1,3 @@
-/**
- * Running a local relay server will allow you to hide your API key
- * and run custom logic on the server
- *
- * Set the local relay server address to:
- * REACT_APP_LOCAL_RELAY_SERVER_URL=http://localhost:8081
- *
- * This will also require you to set OPENAI_API_KEY= in a `.env` file
- * You can run it with `npm run relay`, in parallel with `npm start`
- */
 const LOCAL_RELAY_SERVER_URL: string =
   process.env.REACT_APP_LOCAL_RELAY_SERVER_URL || '';
 
@@ -19,13 +9,7 @@ import { WavRecorder, WavStreamPlayer } from '../lib/wavtools/index.js';
 import { instructions } from '../utils/conversation_config.js';
 import { WavRenderer } from '../utils/wav_renderer';
 
-import { X, Edit, Zap, ArrowUp, ArrowDown } from 'react-feather';
-import { Button } from '../components/button/Button';
-import { Toggle } from '../components/toggle/Toggle';
-import { Map } from '../components/Map';
-
-import './ConsolePage.scss';
-import { isJsxOpeningLikeElement } from 'typescript';
+import { X, Mic, Phone } from 'react-feather';
 
 /**
  * Type for result from get_weather() function call
@@ -166,7 +150,9 @@ export function ConsolePage() {
     const client = clientRef.current;
     const wavRecorder = wavRecorderRef.current;
     const wavStreamPlayer = wavStreamPlayerRef.current;
-
+    client.updateSession({
+      turn_detection: { type: 'server_vad' },
+    });
     // Set state variables
     startTimeRef.current = new Date().toISOString();
     setIsConnected(true);
@@ -188,10 +174,10 @@ export function ConsolePage() {
         // text: `For testing purposes, I want you to list ten car brands. Number each item, e.g. "one (or whatever number you are one): the item name".`
       },
     ]);
-
-    if (client.getTurnDetectionType() === 'server_vad') {
-      await wavRecorder.record((data) => client.appendInputAudio(data.mono));
-    }
+    await wavRecorder.record((data) => client.appendInputAudio(data.mono));
+    // if (client.getTurnDetectionType() === 'server_vad') {
+    //   await wavRecorder.record((data) => client.appendInputAudio(data.mono));
+    // }
   }, []);
 
   /**
@@ -257,6 +243,8 @@ export function ConsolePage() {
   const changeTurnEndType = async (value: string) => {
     const client = clientRef.current;
     const wavRecorder = wavRecorderRef.current;
+    console.log('=========>', wavRecorder, value);
+
     if (value === 'none' && wavRecorder.getStatus() === 'recording') {
       await wavRecorder.pause();
     }
@@ -504,228 +492,145 @@ export function ConsolePage() {
    * Render the application
    */
   return (
-    <div data-component="ConsolePage">
-      <div className="content-top">
-        <div className="content-title">
-          <img src="/openai-logomark.svg" />
-          <span>realtime console</span>
+    <main className="bg-white min-h-screen flex flex-col">
+      {/* Header */}
+      <header className="w-full flex items-center justify-between p-6 border-b bg-white shadow-md fixed top-0 left-0 right-0 z-10">
+        <div className="flex items-center">
+          <span className="text-lg font-semibold text-gray-800"></span>
         </div>
-        <div className="content-api-key">
-          {!LOCAL_RELAY_SERVER_URL && (
-            <Button
-              icon={Edit}
-              iconPosition="end"
-              buttonStyle="flush"
-              label={`api key: ${apiKey.slice(0, 3)}...`}
-              onClick={() => resetAPIKey()}
-            />
+        <div className="flex space-x-4">
+          {/* <button className="text-gray-500 hover:text-gray-800">
+            Star on GitHub
+          </button>
+          <button className="text-gray-500 hover:text-gray-800">
+            Dark Mode
+          </button> */}
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div
+        className={`${
+          !items.length && 'justify-center'
+        } flex-grow mt-24 mb-20 p-6 flex flex-col items-center overflow-y-auto`}
+      >
+        <div className="container mx-auto flex flex-col items-center space-y-6">
+          {!items.length ? (
+            // Start Call Button
+            <button
+              onClick={connectConversation}
+              className="flex items-center px-3 py-2 text-white bg-gray-800 rounded-md shadow-lg hover:bg-gray-700 focus:outline-none transition"
+            >
+              <Phone size={18} className="mr-2 opacity-50" />{' '}
+              <span className="font-medium text-md">Start Call</span>
+            </button>
+          ) : (
+            // Conversation Items
+            <div className="container mx-auto flex flex-col bg-gray-200 rounded-lg p-4 space-y-6">
+              {items.map((conversationItem) => (
+                <div
+                  key={conversationItem.id}
+                  className={`w-full max-w-2xl p-4 border rounded-lg shadow-sm space-y-2 
+                  ${
+                    conversationItem.role === 'user'
+                      ? 'bg-blue-100 self-end'
+                      : 'bg-gray-100 self-start text-left'
+                  }
+                  flex flex-col`}
+                >
+                  {/* Speaker and Delete Button */}
+                  <div className="flex justify-between items-start">
+                    <span className="text-sm font-semibold text-gray-500 capitalize">
+                      {conversationItem.role === 'user' ? 'User' : 'Assistant'}
+                    </span>
+                    <button
+                      onClick={() =>
+                        deleteConversationItem(conversationItem.id)
+                      }
+                      className="text-gray-400 hover:text-gray-600 focus:outline-none"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {/* Message Content */}
+                  <div className="text-base text-gray-800 mb-4">
+                    {conversationItem.type === 'function_call_output' && (
+                      <div>{conversationItem.formatted.output}</div>
+                    )}
+
+                    {!!conversationItem.formatted.tool && (
+                      <div>
+                        {conversationItem.formatted.tool.name}(
+                        {conversationItem.formatted.tool.arguments})
+                      </div>
+                    )}
+                    {!conversationItem.formatted.tool &&
+                      conversationItem.role === 'user' && (
+                        <div>
+                          {conversationItem.formatted.transcript ||
+                            (conversationItem.formatted.audio?.length
+                              ? '(awaiting transcript)'
+                              : conversationItem.formatted.text ||
+                                '(item sent)')}
+                        </div>
+                      )}
+                    {!conversationItem.formatted.tool &&
+                      conversationItem.role === 'assistant' && (
+                        <div>
+                          {conversationItem.formatted.transcript ||
+                            conversationItem.formatted.text ||
+                            '(truncated)'}
+                        </div>
+                      )}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>
-      <div className="content-main">
-        <div className="content-logs">
-          <div className="content-block events">
-            <div className="visualization">
-              <div className="visualization-entry client">
-                <canvas ref={clientCanvasRef} />
-              </div>
-              <div className="visualization-entry server">
-                <canvas ref={serverCanvasRef} />
-              </div>
+
+      {/* End Call Button */}
+      {items.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 w-full p-4 flex justify-center bg-white">
+          <button
+            onClick={disconnectConversation}
+            className="px-3 py-2 text-white bg-red-600 rounded-md shadow-md hover:bg-red-500 focus:outline-none transition"
+          >
+            <div className="flex items-center justify-center">
+              <Phone size={18} className="mr-2 opacity-50" />{' '}
+              <span className="font-medium text-md">End Call</span>
             </div>
-            <div className="content-block-title">events</div>
-            <div className="content-block-body" ref={eventsScrollRef}>
-              {!realtimeEvents.length && `awaiting connection...`}
-              {realtimeEvents.map((realtimeEvent, i) => {
-                const count = realtimeEvent.count;
-                const event = { ...realtimeEvent.event };
-                if (event.type === 'input_audio_buffer.append') {
-                  event.audio = `[trimmed: ${event.audio.length} bytes]`;
-                } else if (event.type === 'response.audio.delta') {
-                  event.delta = `[trimmed: ${event.delta.length} bytes]`;
-                }
-                return (
-                  <div className="event" key={event.event_id}>
-                    <div className="event-timestamp">
-                      {formatTime(realtimeEvent.time)}
-                    </div>
-                    <div className="event-details">
-                      <div
-                        className="event-summary"
-                        onClick={() => {
-                          // toggle event details
-                          const id = event.event_id;
-                          const expanded = { ...expandedEvents };
-                          if (expanded[id]) {
-                            delete expanded[id];
-                          } else {
-                            expanded[id] = true;
-                          }
-                          setExpandedEvents(expanded);
-                        }}
-                      >
-                        <div
-                          className={`event-source ${
-                            event.type === 'error'
-                              ? 'error'
-                              : realtimeEvent.source
-                          }`}
-                        >
-                          {realtimeEvent.source === 'client' ? (
-                            <ArrowUp />
-                          ) : (
-                            <ArrowDown />
-                          )}
-                          <span>
-                            {event.type === 'error'
-                              ? 'error!'
-                              : realtimeEvent.source}
-                          </span>
-                        </div>
-                        <div className="event-type">
-                          {event.type}
-                          {count && ` (${count})`}
-                        </div>
-                      </div>
-                      {!!expandedEvents[event.event_id] && (
-                        <div className="event-payload">
-                          {JSON.stringify(event, null, 2)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <div className="content-block conversation">
-            <div className="content-block-title">conversation</div>
-            <div className="content-block-body" data-conversation-content>
-              {!items.length && `awaiting connection...`}
-              {items.map((conversationItem, i) => {
-                return (
-                  <div className="conversation-item" key={conversationItem.id}>
-                    <div className={`speaker ${conversationItem.role || ''}`}>
-                      <div>
-                        {(
-                          conversationItem.role || conversationItem.type
-                        ).replaceAll('_', ' ')}
-                      </div>
-                      <div
-                        className="close"
-                        onClick={() =>
-                          deleteConversationItem(conversationItem.id)
-                        }
-                      >
-                        <X />
-                      </div>
-                    </div>
-                    <div className={`speaker-content`}>
-                      {/* tool response */}
-                      {conversationItem.type === 'function_call_output' && (
-                        <div>{conversationItem.formatted.output}</div>
-                      )}
-                      {/* tool call */}
-                      {!!conversationItem.formatted.tool && (
-                        <div>
-                          {conversationItem.formatted.tool.name}(
-                          {conversationItem.formatted.tool.arguments})
-                        </div>
-                      )}
-                      {!conversationItem.formatted.tool &&
-                        conversationItem.role === 'user' && (
-                          <div>
-                            {conversationItem.formatted.transcript ||
-                              (conversationItem.formatted.audio?.length
-                                ? '(awaiting transcript)'
-                                : conversationItem.formatted.text ||
-                                  '(item sent)')}
-                          </div>
-                        )}
-                      {!conversationItem.formatted.tool &&
-                        conversationItem.role === 'assistant' && (
-                          <div>
-                            {conversationItem.formatted.transcript ||
-                              conversationItem.formatted.text ||
-                              '(truncated)'}
-                          </div>
-                        )}
-                      {conversationItem.formatted.file && (
-                        <audio
-                          src={conversationItem.formatted.file.url}
-                          controls
-                        />
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <div className="content-actions">
-            <Toggle
-              defaultValue={false}
-              labels={['manual', 'vad']}
-              values={['none', 'server_vad']}
-              onChange={(_, value) => changeTurnEndType(value)}
-            />
-            <div className="spacer" />
-            {isConnected && canPushToTalk && (
-              <Button
-                label={isRecording ? 'release to send' : 'push to talk'}
-                buttonStyle={isRecording ? 'alert' : 'regular'}
-                disabled={!isConnected || !canPushToTalk}
-                onMouseDown={startRecording}
-                onMouseUp={stopRecording}
-              />
-            )}
-            <div className="spacer" />
-            <Button
-              label={isConnected ? 'disconnect' : 'connect'}
-              iconPosition={isConnected ? 'end' : 'start'}
-              icon={isConnected ? X : Zap}
-              buttonStyle={isConnected ? 'regular' : 'action'}
-              onClick={
-                isConnected ? disconnectConversation : connectConversation
-              }
-            />
-          </div>
+          </button>
         </div>
-        <div className="content-right">
-          <div className="content-block map">
-            <div className="content-block-title">get_weather()</div>
-            <div className="content-block-title bottom">
-              {marker?.location || 'not yet retrieved'}
-              {!!marker?.temperature && (
-                <>
-                  <br />
-                  🌡️ {marker.temperature.value} {marker.temperature.units}
-                </>
-              )}
-              {!!marker?.wind_speed && (
-                <>
-                  {' '}
-                  🍃 {marker.wind_speed.value} {marker.wind_speed.units}
-                </>
-              )}
-            </div>
-            <div className="content-block-body full">
-              {coords && (
-                <Map
-                  center={[coords.lat, coords.lng]}
-                  location={coords.location}
-                />
-              )}
-            </div>
-          </div>
-          <div className="content-block kv">
-            <div className="content-block-title">set_memory()</div>
-            <div className="content-block-body content-kv">
-              {JSON.stringify(memoryKv, null, 2)}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      )}
+    </main>
   );
+}
+
+// Define an Emotion type with 'name' and 'value' fields.
+type Emotion = {
+  name: string;
+  value: number;
+};
+
+// Define the properties for each conversation item.
+type FormattedItemType = {
+  id: string;
+  role: 'User' | 'Assistant';
+  message: string;
+  emotions: Emotion[];
+};
+
+// If SystemItemType is different from FormattedItemType, define it separately.
+// Otherwise, you can omit this or make it the same as FormattedItemType.
+type SystemItemType = FormattedItemType;
+
+// Define props for ConversationUI
+interface ConversationUIProps {
+  items: (FormattedItemType & SystemItemType)[];
+  connectConversation: () => void;
+  disconnectConversation: () => void;
+  deleteConversationItem: (id: string) => void;
 }
