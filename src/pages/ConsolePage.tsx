@@ -167,6 +167,7 @@ export function ConsolePage() {
 
     // Connect to realtime API
     await client.connect();
+    client.updateSession({ voice: 'Echo' });
     client.sendUserMessageContent([
       {
         type: `input_text`,
