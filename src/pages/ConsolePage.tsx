@@ -78,6 +78,41 @@ export function ConsolePage() {
   /**
    * References for
    * - Rendering audio visualization (canvas)
+    /**
+   * References for
+   * - Rendering audio visualization (canvas)
+   * - Autoscrolling event logs
+   * - Timing delta for event log displays
+   */
+  const clientCanvasRef = useRef<HTMLCanvasElement>(null);
+  const serverCanvasRef = useRef<HTMLCanvasElement>(null);
+  const eventsScrollHeightRef = useRef(0);
+  const eventsScrollRef = useRef<HTMLDivElement>(null);
+  const startTimeRef = useRef<string>(new Date().toISOString());
+
+  /**
+   * All of our variables for displaying application state
+   * - items are all conversation items (dialog)
+   * - realtimeEvents are event logs, which can be expanded
+   * - memoryKv is for set_memory() function
+   * - coords, marker are for get_weather() function
+   */
+  const [items, setItems] = useState<ItemType[]>([]);
+  const [realtimeEvents, setRealtimeEvents] = useState<RealtimeEvent[]>([]);
+  const [expandedEvents, setExpandedEvents] = useState<{
+    [key: string]: boolean;
+  }>({});
+  const [isConnected, setIsConnected] = useState(false);
+  const [canPushToTalk, setCanPushToTalk] = useState(true);
+  const [isRecording, setIsRecording] = useState(false);
+  const [memoryKv, setMemoryKv] = useState<{ [key: string]: any }>({});
+  const [coords, setCoords] = useState<Coordinates | null>({
+    lat: 37.775593,
+    lng: -122.418137,
+  });
+  const [marker, setMarker] = useState<Coordinates | null>(null);
+
+  /**
    * - Autoscrolling event logs
    * - Timing delta for event log displays
    */
@@ -167,7 +202,7 @@ export function ConsolePage() {
 
     // Connect to realtime API
     await client.connect();
-    client.updateSession({ voice: 'Echo' });
+    client.updateSession({ voice: 'Onyx' });
     client.sendUserMessageContent([
       {
         type: `input_text`,
