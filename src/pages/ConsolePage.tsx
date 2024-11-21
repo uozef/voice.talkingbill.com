@@ -183,7 +183,7 @@ export function ConsolePage() {
 
     // Connect to realtime API
     await client.connect();
-    client.updateSession({ voice: 'echo' });
+    client.updateSession({ voice: 'alloy' });
     client.sendUserMessageContent([
       {
         type: `input_text`,
@@ -385,7 +385,7 @@ export function ConsolePage() {
     client.updateSession({ instructions: instructions });
     // Set transcription, otherwise we don't get user transcriptions back
     client.updateSession({ input_audio_transcription: { model: 'whisper-1' } });
-    client.updateSession({ voice: 'echo' });
+    client.updateSession({ voice: 'alloy' });
 
     // Add tools
     client.addTool(
